@@ -1,0 +1,117 @@
+---
+title: "R Notebook - Remove Gene Count Outlier Cells From FD Samples"
+---
+
+This script visualizes cell gene (nFeature_RNA variable) and read (nCount_RNA variable) counts in each sample and removes outlier cells with fewer than 300 or greater than 5500 genes.
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+```
+
+# Load Seurat objects  
+Loads FD sample objects FD16ps, FD21ps, FD28ps, and FD716ps.
+```{r}
+# Load Seurat objects that have had cells with >= 15% mitochondrial gene reads removed.
+load(file='./Objects/postMT_FD.rda')
+```
+
+# Violin plots before filtering
+```{r}
+# Violin plots of nCount_RNA.  Log scale = False.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nCount_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nCount_RNA.  Log scale = True.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nCount_RNA", log = T) + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = False.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nFeature_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = True.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nFeature_RNA", log = T) + NoLegend())
+}
+```
+
+# Scatter plots before filtering  
+```{r}
+# Scatter plots of nCount_RNA vs nFeature_RNA.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(FeatureScatter(i, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"))
+}
+```
+
+# Number of cells before filtering
+```{r}
+c(FD16ps, FD21ps, FD28ps, FD716ps)
+```
+
+
+# Filter cells
+```{r}
+# Keep cells with > 300 nFeature_RNA & < 8000 nFeature_RNA.
+FD16ps <- subset(FD16ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+FD21ps <- subset(FD21ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+FD28ps <- subset(FD28ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+FD716ps <- subset(FD716ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+```
+
+# Number of cells after filtering
+```{r}
+c(FD16ps, FD21ps, FD28ps, FD716ps)
+```
+
+# Violin plots after filtering
+```{r}
+# Violin plots of nCount_RNA.  Log scale = False.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nCount_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nCount_RNA.  Log scale = True.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nCount_RNA", log = T) + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = False.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nFeature_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = True.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(VlnPlot(i, features = "nFeature_RNA", log = T) + NoLegend())
+}
+```
+
+# Scatter plots after filtering  
+```{r}
+# Scatter plots of nCount_RNA vs nFeature_RNA.
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  print(FeatureScatter(i, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"))
+}
+```
+
+# Save objects
+```{r}
+save(FD16ps, FD21ps, FD28ps, FD716ps, file='./Objects/postnFeat_FD.rda')
+```

@@ -1,0 +1,117 @@
+---
+title: "R Notebook - Remove Gene Count Outlier Cells From WT Samples"
+---
+
+This script visualizes cell gene (nFeature_RNA variable) and read (nCount_RNA variable) counts in each sample and removes outlier cells with fewer than 300 or greater than 5500 genes.
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+```
+
+# Load Seurat objects  
+Loads FD sample objects WT150ps, WT151ps, WT152ps, and WT153ps.
+```{r}
+# Load Seurat objects that have had cells with >= 15% mitochondrial gene reads removed.
+load(file='./Objects/postMT_WT.rda')
+```
+
+# Violin plots before filtering
+```{r}
+# Violin plots of nCount_RNA.  Log scale = False.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nCount_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nCount_RNA.  Log scale = True.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nCount_RNA", log = T) + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = False.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nFeature_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = True.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nFeature_RNA", log = T) + NoLegend())
+}
+```
+
+# Scatter plots before filtering  
+```{r}
+# Scatter plots of nCount_RNA vs nFeature_RNA.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(FeatureScatter(i, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"))
+}
+```
+
+# Number of cells before filtering
+```{r}
+c(WT150ps, WT151ps, WT152ps, WT153ps)
+```
+
+
+# Filter cells
+```{r}
+# Keep cells with > 300 nFeature_RNA & < 8000 nFeature_RNA.
+WT150ps <- subset(WT150ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+WT151ps <- subset(WT151ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+WT152ps <- subset(WT152ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+WT153ps <- subset(WT153ps, subset = nFeature_RNA > 300 & nFeature_RNA < 5500)
+```
+
+# Number of cells after filtering
+```{r}
+c(WT150ps, WT151ps, WT152ps, WT153ps)
+```
+
+# Violin plots after filtering
+```{r}
+# Violin plots of nCount_RNA.  Log scale = False.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nCount_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nCount_RNA.  Log scale = True.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nCount_RNA", log = T) + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = False.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nFeature_RNA") + NoLegend())
+}
+```
+
+```{r}
+# Violin plots of nFeature_RNA.  Log scale = True.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(VlnPlot(i, features = "nFeature_RNA", log = T) + NoLegend())
+}
+```
+
+# Scatter plots after filtering  
+```{r}
+# Scatter plots of nCount_RNA vs nFeature_RNA.
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  print(FeatureScatter(i, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"))
+}
+```
+
+# Save objects
+```{r}
+save(WT150ps, WT151ps, WT152ps, WT153ps, file='./Objects/postnFeat_FD.rda')
+```

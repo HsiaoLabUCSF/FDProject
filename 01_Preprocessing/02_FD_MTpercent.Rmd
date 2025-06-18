@@ -1,0 +1,112 @@
+---
+title: "R Notebook: Remove High Mito% Cells from FD Samples"
+---
+
+This script visualizes the mitochondrial read percentages in each sample and removes cells with greater than or equal to 15% of reads coming from mitochondrial genes.
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+```
+
+# Load adjusted counts from SoupX pipeline.
+```{r}
+# loads spx.fd.out object
+load(file='./Objects/SoupX_FD.rda')
+```
+
+# Create Seurat Objects
+```{r}
+FD16ps <- CreateSeuratObject(counts = spx.fd.out[["FD16ps"]], project = "FD16ps", 
+                             min.cells = 3, min.features = 200)
+FD21ps <- CreateSeuratObject(counts = spx.fd.out[["FD21ps"]], project = "FD21ps", 
+                             min.cells = 3, min.features = 200)
+FD28ps <- CreateSeuratObject(counts = spx.fd.out[["FD28ps"]], project = "FD28ps", 
+                             min.cells = 3, min.features = 200)
+FD716ps <- CreateSeuratObject(counts = spx.fd.out[["FD716ps"]], project = "FD716ps", 
+                              min.cells = 3, min.features = 200)
+```
+
+```{r}
+rm(spx.fd.out)
+```
+
+
+# Calculate mitochondrial percentage and store in percent.mt variable
+```{r}
+FD16ps[["percent.mt"]] <- PercentageFeatureSet(object = FD16ps, pattern = "^MT-")
+FD21ps[["percent.mt"]] <- PercentageFeatureSet(object = FD21ps, pattern = "^MT-")
+FD28ps[["percent.mt"]] <- PercentageFeatureSet(object = FD28ps, pattern = "^MT-")
+FD716ps[["percent.mt"]] <- PercentageFeatureSet(object = FD716ps, pattern = "^MT-")
+```
+
+# Violin Plots of percent.mt
+## Linear Scale
+```{r}
+(VlnPlot(FD16ps, features = "percent.mt") + 
+  VlnPlot(FD21ps, features = "percent.mt") +
+  VlnPlot(FD28ps, features = "percent.mt") + 
+  VlnPlot(FD716ps, features = "percent.mt")) & NoLegend()
+```
+
+## Log Scale
+```{r}
+(VlnPlot(FD16ps, features = "percent.mt", log=TRUE) + 
+  VlnPlot(FD21ps, features = "percent.mt", log=TRUE) +
+  VlnPlot(FD28ps, features = "percent.mt", log=TRUE) + 
+  VlnPlot(FD716ps, features = "percent.mt", log=TRUE)) & NoLegend()
+```
+
+## y-axis range: 0-25
+Also, display max density or mito% value where the violin plot is the widest (i.e. has the greatest number of cells).
+```{r}
+( (VlnPlot(FD16ps, features = "percent.mt") + 
+     labs(subtitle = paste("Max Density: ",
+                           toString(round(density(FD16ps$percent.mt)$x[which.max(
+                             density(FD16ps$percent.mt)$y)], digits = 2)))) ) + 
+    (VlnPlot(FD21ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(FD21ps$percent.mt)$x[which.max(
+                               density(FD21ps$percent.mt)$y)], digits = 2)))) ) + 
+    
+    (VlnPlot(FD28ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(FD28ps$percent.mt)$x[which.max(
+                               density(FD28ps$percent.mt)$y)], digits = 2)))) ) + 
+    
+    (VlnPlot(FD716ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(FD716ps$percent.mt)$x[which.max(
+                               density(FD716ps$percent.mt)$y)], digits = 2)))) ) ) & 
+  NoLegend() & ylim(0,25)
+```
+
+# Show number of cells that will be removed per sample
+```{r}
+table(FD16ps$percent.mt > 15)
+table(FD21ps$percent.mt > 15)
+table(FD28ps$percent.mt > 15)
+table(FD716ps$percent.mt > 15)
+```
+
+# Keep cells with < 15 percent.mt
+```{r}
+FD16ps <- subset(FD16ps, subset = percent.mt < 15)
+FD21ps <- subset(FD21ps, subset = percent.mt < 15)
+FD28ps <- subset(FD28ps, subset = percent.mt < 15)
+FD716ps <- subset(FD716ps, subset = percent.mt < 15)
+```
+
+# Violin Plots after filtering
+```{r}
+(VlnPlot(FD16ps, features = "percent.mt") + 
+  VlnPlot(FD21ps, features = "percent.mt") +
+  VlnPlot(FD28ps, features = "percent.mt") + 
+  VlnPlot(FD716ps, features = "percent.mt")) & NoLegend()
+```
+
+# Save objects
+```{r}
+save(FD16ps, FD21ps, FD28ps, FD716ps, file='./Objects/postMT_FD.rda')
+```

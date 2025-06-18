@@ -1,0 +1,112 @@
+---
+title: "R Notebook: Remove High Mito% Cells from WT Samples"
+---
+
+This script visualizes the mitochondrial read percentages in each sample and removes cells with greater than or equal to 15% of reads coming from mitochondrial genes.
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+```
+
+# Load adjusted counts from SoupX pipeline.
+```{r}
+# loads spx.wt.out object
+load(file='./Objects/SoupX_WT.rda')
+```
+
+# Create Seurat Objects
+```{r}
+WT150ps <- CreateSeuratObject(counts = spx.wt.out[["WT150ps"]], project = "WT150ps", 
+                             min.cells = 3, min.features = 200)
+WT151ps <- CreateSeuratObject(counts = spx.wt.out[["WT151ps"]], project = "WT151ps", 
+                             min.cells = 3, min.features = 200)
+WT152ps <- CreateSeuratObject(counts = spx.wt.out[["WT152ps"]], project = "WT152ps", 
+                             min.cells = 3, min.features = 200)
+WT153ps <- CreateSeuratObject(counts = spx.wt.out[["WT153ps"]], project = "WT153ps", 
+                              min.cells = 3, min.features = 200)
+```
+
+```{r}
+rm(spx.wt.out)
+```
+
+
+# Calculate mitochondrial percentage and store in percent.mt variable
+```{r}
+WT150ps[["percent.mt"]] <- PercentageFeatureSet(object = WT150ps, pattern = "^MT-")
+WT151ps[["percent.mt"]] <- PercentageFeatureSet(object = WT151ps, pattern = "^MT-")
+WT152ps[["percent.mt"]] <- PercentageFeatureSet(object = WT152ps, pattern = "^MT-")
+WT153ps[["percent.mt"]] <- PercentageFeatureSet(object = WT153ps, pattern = "^MT-")
+```
+
+# Violin Plots of percent.mt
+## Linear Scale
+```{r}
+(VlnPlot(WT150ps, features = "percent.mt") + 
+  VlnPlot(WT151ps, features = "percent.mt") +
+  VlnPlot(WT152ps, features = "percent.mt") + 
+  VlnPlot(WT153ps, features = "percent.mt")) & NoLegend()
+```
+
+## Log Scale
+```{r}
+(VlnPlot(WT150ps, features = "percent.mt", log=TRUE) + 
+  VlnPlot(WT151ps, features = "percent.mt", log=TRUE) +
+  VlnPlot(WT152ps, features = "percent.mt", log=TRUE) + 
+  VlnPlot(WT153ps, features = "percent.mt", log=TRUE)) & NoLegend()
+```
+
+## y-axis range: 0-25
+Also, display max density or mito% value where the violin plot is the widest (i.e. has the greatest number of cells).
+```{r}
+( (VlnPlot(WT150ps, features = "percent.mt") + 
+     labs(subtitle = paste("Max Density: ",
+                           toString(round(density(WT150ps$percent.mt)$x[which.max(
+                             density(WT150ps$percent.mt)$y)], digits = 2)))) ) + 
+    (VlnPlot(WT151ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(WT151ps$percent.mt)$x[which.max(
+                               density(WT151ps$percent.mt)$y)], digits = 2)))) ) + 
+    
+    (VlnPlot(WT152ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(WT152ps$percent.mt)$x[which.max(
+                               density(WT152ps$percent.mt)$y)], digits = 2)))) ) + 
+    
+    (VlnPlot(WT153ps, features = "percent.mt") +
+       labs(subtitle = paste("Max Density: ",
+                             toString(round(density(WT153ps$percent.mt)$x[which.max(
+                               density(WT153ps$percent.mt)$y)], digits = 2)))) ) ) & 
+  NoLegend() & ylim(0,25)
+```
+
+# Show number of cells that will be removed per sample
+```{r}
+table(WT150ps$percent.mt > 15)
+table(WT151ps$percent.mt > 15)
+table(WT152ps$percent.mt > 15)
+table(WT153ps$percent.mt > 15)
+```
+
+# Keep cells with < 15 percent.mt
+```{r}
+WT150ps <- subset(WT150ps, subset = percent.mt < 15)
+WT151ps <- subset(WT151ps, subset = percent.mt < 15)
+WT152ps <- subset(WT152ps, subset = percent.mt < 15)
+WT153ps <- subset(WT153ps, subset = percent.mt < 15)
+```
+
+# Violin Plots after filtering
+```{r}
+(VlnPlot(WT150ps, features = "percent.mt") + 
+  VlnPlot(WT151ps, features = "percent.mt") +
+  VlnPlot(WT152ps, features = "percent.mt") + 
+  VlnPlot(WT153ps, features = "percent.mt")) & NoLegend()
+```
+
+# Save objects
+```{r}
+save(WT150ps, WT151ps, WT152ps, WT153ps, file='./Objects/postMT_WT.rda')
+```

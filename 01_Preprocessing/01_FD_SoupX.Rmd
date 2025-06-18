@@ -1,0 +1,60 @@
+---
+title: "R Notebook - SoupX on Bone FD samples."
+---
+
+This pipeline removes ambient or background mRNA contamination (the "Soup") from single cell RNA-seq samples using the R package, [SoupX](https://www.biorxiv.org/content/10.1101/303727v2).
+
+```{r}
+library(SoupX)
+library(ggplot2)
+```
+
+# Load raw counts  
+Load raw counts and clustering data generated from 10X Cell Ranger pipeline into SoupX objects
+```{r}
+spx.fd.list <- list(
+  FD16ps = load10X('../cellranger/FD/FD16-POST/'),
+  FD21ps = load10X('../cellranger/FD/FD21-POST/'),
+  FD28ps = load10X('../cellranger/FD/FD28-POST/'),
+  FD716ps = load10X('../cellranger/FD/FD716-POST/')
+)
+```
+
+# Probability density distribution plots of contamination fraction
+```{r}
+for (i in length(spx.fd.list)) {
+  print(spx.fd.list[i])
+  spx.fd.list[[i]] <- autoEstCont(spx.fd.list[[i]])
+}
+```
+
+# Tables of top20 contaminating gene reads
+```{r}
+for (i in length(spx.fd.list)) {
+  head(spx.fd.list[[i]]$soupProfile[order(spx.fd.list[[i]]$soupProfile$est, decreasing = TRUE), ], 
+       n = 20)
+}
+```
+
+# Marker distribution plots
+```{r}
+for (i in length(spx.fd.list)) {
+  plotMarkerDistribution(spx.fd.list[[i]]) + ggtitle(names(spx.fd.list[i]))
+}
+```
+
+# Adjust counts
+```{r}
+spx.out <- list()
+for (i in length(spx.fd.list)) {
+  spx.fd.out[[names(spx.fd.list[i])]] = adjustCounts(spx.fd.list[[i]], roundToInt = TRUE)
+}
+```
+
+# Save output
+```{r}
+save(spx.fd.out, file='./Objects/SoupX_FD.rda')
+```
+
+
+

@@ -1,0 +1,58 @@
+---
+title: "R Notebook - SoupX on Bone WT samples."
+---
+
+This pipeline removes ambient or background mRNA contamination (the "Soup") from single cell RNA-seq samples using the R package, [SoupX](https://www.biorxiv.org/content/10.1101/303727v2).
+
+```{r}
+library(SoupX)
+library(ggplot2)
+```
+
+# Load raw counts  
+Load raw counts and clustering data generated from 10X Cell Ranger pipeline into SoupX objects
+```{r}
+spx.wt.list <- list(
+  WT150ps = load10X('../cellranger/FD/WT150-POST/'),
+  WT151ps = load10X('../cellranger/FD/WT151-POST/'),
+  WT152ps = load10X('../cellranger/FD/WT152-POST/'),
+  WT153ps = load10X('../cellranger/FD/WT153-POST/')
+)
+```
+
+# Probability density distribution plots of contamination fraction
+```{r}
+for (i in length(spx.wt.list)) {
+  print(spx.wt.list[i])
+  spx.wt.list[[i]] <- autoEstCont(spx.wt.list[[i]])
+}
+```
+
+# Tables of top20 contaminating gene reads
+```{r}
+for (i in length(spx.wt.list)) {
+  head(spx.wt.list[[i]]$soupProfile[order(spx.wt.list[[i]]$soupProfile$est, decreasing = TRUE), ], 
+       n = 20)
+}
+```
+
+# Marker distribution plots
+```{r}
+for (i in length(spx.wt.list)) {
+  plotMarkerDistribution(spx.wt.list[[i]]) + ggtitle(names(spx.wt.list[i]))
+}
+```
+
+# Adjust counts
+```{r}
+spx.out <- list()
+for (i in length(spx.wt.list)) {
+  spx.wt.out[[names(spx.wt.list[i])]] = adjustCounts(spx.wt.list[[i]], roundToInt = TRUE)
+}
+```
+
+# Save output
+```{r}
+save(spx.wt.out, file='./Objects/SoupX_WT.rda')
+```
+

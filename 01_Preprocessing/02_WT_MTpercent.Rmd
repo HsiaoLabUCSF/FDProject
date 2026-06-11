@@ -32,6 +32,12 @@ WT153ps <- CreateSeuratObject(counts = spx.wt.out[["WT153ps"]], project = "WT153
 rm(spx.wt.out)
 ```
 
+```{r}
+# Add experimental group metadata
+for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
+  i$grp <- "WT"
+}
+```
 
 # Calculate mitochondrial percentage and store in percent.mt variable
 ```{r}

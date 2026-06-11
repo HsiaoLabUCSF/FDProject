@@ -113,5 +113,5 @@ for(i in c(WT150ps,WT151ps, WT152ps, WT153ps)){
 
 # Save objects
 ```{r}
-save(WT150ps, WT151ps, WT152ps, WT153ps, file='./Objects/postnFeat_FD.rda')
+save(WT150ps, WT151ps, WT152ps, WT153ps, file='./Objects/postnFeat_WT.rda')
 ```

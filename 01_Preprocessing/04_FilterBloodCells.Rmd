@@ -1,0 +1,403 @@
+---
+title: "R Notebook - Filtering of Hematopoietic Lineage Cells from Dataset"
+output:
+  html_notebook:
+    toc: true
+    toc_float: true
+---
+
+The purpose of this pipeline is to remove hematopoietic lineage cells from samples, including peripheral blood mononuclear cells (PBMCs) and red blood cells (RBCs).  
+
+Samples are integrated into a single object, and then the R packages SingleR and Seurat are used to perform reference-based annotation of single cells.  See:  
+https://satijalab.org/seurat/archive/v4.3/integration_introduction  
+https://github.com/dviraran/singler  
+https://satijalab.org/seurat/archive/v4.3/multimodal_reference_mapping
+
+These annotations and the PTPRC (CD45 protein) hematopoietic marker gene are used to filter out hematopoietic lineage cells from the dataset.  Any remaining RBC-contaminated cells are removed by filtering out those with >3 HBB, HBA1, or HBA2 transcripts.  Post-filtering, samples are re-integrated  and cells reclustered in a subsequent pipeline.
+
+The steps in this pipeline are as follows:  
+1) Integrate samples into one Seurat object.  
+2) Run SingleR's reference mapping pipeline.  
+3) Run Seurat's reference mapping pipeline.  
+4) Remove blood cells based on SingleR's reference-based annotations.  
+5) Remove PTPRC+ (a hemapoietic lineage marker) cells.  
+6) Remove blood cells based on Seurat's reference-based annotations.  
+7) Remove remaining RBCs and RBC-contanminated cells.  
+
+(Note: For simplicitie's sake, FD28ps is included in the script below.  However, for the published analysis, FD28ps was collected at a later date, processed individually using the same filtering steps and cutoffs before being integrated with the other samples post-filtering.)  
+
+```{r}
+# Load libraries
+library(Seurat)
+library(SeuratDisk)
+library(SingleR)
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+# Load samples
+load("./Objects/postnFeat_WT.rda")
+load("./Objects/postnFeat_FD.rda")
+```
+
+# 1) Integrate Samples  
+```{r}
+# Normalize data with SCTransform
+list.post <- lapply(X = list(FD16ps, FD21ps, FD28ps, FD716ps, 
+                             WT150ps, WT151ps, WT152ps, WT153ps), 
+                    FUN = SCTransform, 
+                    vars.to.regress = c('nCount_RNA','percent.mt'))
+```
+
+```{r}
+rm(FD16ps, FD21ps, FD28ps, FD716ps, WT150ps, WT151ps, WT152ps, WT153ps)
+```
+
+```{r}
+features.post <- SelectIntegrationFeatures(object.list = list.post, nfeatures = 3000)
+```
+
+```{r}
+list.post <- PrepSCTIntegration(object.list = list.post, anchor.features = features.post)
+```
+
+```{r}
+post.anchors <- FindIntegrationAnchors(object.list = list.post, normalization.method = "SCT", 
+    anchor.features = features.post)
+```
+
+```{r}
+rm(list.post)
+```
+
+```{r}
+fdpost.combined <- IntegrateData(anchorset = post.anchors, normalization.method = "SCT")
+```
+
+```{r}
+rm(post.anchors)
+```
+
+```{r}
+fdpost.combined <- RunPCA(fdpost.combined, npcs = 50)
+```
+
+```{r}
+fdpost.combined <- RunUMAP(fdpost.combined, dims=1:30)
+```
+
+```{r}
+fdpost.combined <- FindNeighbors(fdpost.combined, reduction = "pca", dims = 1:30)
+```
+
+```{r}
+fdpost.combined <- FindClusters(fdpost.combined, resolution = 0.5)
+```
+
+```{r}
+fdpost.combined
+```
+
+```{r}
+# Total number of cells in the object
+ncol(fdpost.combined)
+# Number of cells per sample
+table(fdpost.combined$orig.ident)
+```
+
+# 2) Run SingleR Pipeline
+```{r}
+# Load Human Primary Cell Atlas reference  
+hpca.se <- celldex::HumanPrimaryCellAtlasData()
+```
+```{r}
+# Load Blueprint Encode reference  
+encode.se <- celldex::BlueprintEncodeData()
+```
+
+```{r}
+# Run SingleR using hpca.se ref.  
+snglr.hpca.main <- SingleR(test = as.matrix(GetAssayData(fdpost.combined[["SCT"]], slot = "data")), 
+                           ref = hpca.se,
+                           labels = hpca.se$label.main)
+snglr.hpca.fine <- SingleR(test = as.matrix(GetAssayData(fdpost.combined[["SCT"]], slot = "data")), 
+                           ref = hpca.se,
+                           labels = hpca.se$label.fine)
+```
+
+```{r}  
+# Runc SingleR using encode.se ref.
+snglr.enc.main <- SingleR(test = as.matrix(GetAssayData(fdpost.combined[["SCT"]], slot = "data")), 
+                          ref = encode.se,
+                          labels = encode.se$label.main)
+snglr.enc.fine <- SingleR(test = as.matrix(GetAssayData(fdpost.combined[["SCT"]], slot = "data")), 
+                          ref = encode.se,
+                          labels = encode.se$label.fine)
+```
+
+```{r}
+# Transfer pruned.labels to object
+fdpost.combined[["hpca.main.prnd"]] <- snglr.hpca.main$pruned.labels
+fdpost.combined[["encode.main.prnd"]] <- snglr.enc.main$pruned.labels
+fdpost.combined[["hpca.fine.prnd"]] <- snglr.hpca.fine$pruned.labels
+fdpost.combined[["encode.fine.prnd"]] <- snglr.enc.fine$pruned.labels
+```
+
+```{r}
+# Transfer labels to object
+fdpost.combined[["hpca.main"]] <- snglr.hpca.main$labels
+fdpost.combined[["encode.main"]] <- snglr.enc.main$labels
+fdpost.combined[["hpca.fine"]] <- snglr.hpca.fine$labels
+fdpost.combined[["encode.fine"]] <- snglr.enc.fine$labels
+```
+
+## Cell Counts from hpca.main
+```{r}
+table(fdpost.combined$hpca.main)
+```
+## Cell Counts from encode.main
+```{r}
+table(fdpost.combined$encode.main)
+```
+
+## Cell Counts from hpca.fine
+```{r}
+table(fdpost.combined$hpca.fine)
+```
+## Cell Counts from encode.fine
+```{r}
+table(fdpost.combined$encode.fine)
+```
+
+# 3) Run Seurat's Mapping Pipeline 
+Identify PBMC's using Seurat's Reference Mapping Pipeline.  
+https://satijalab.org/seurat/archive/v4.3/multimodal_reference_mapping   
+
+## Load Reference  
+This reference takes up 9.8 GB of space.
+```{r}
+reference <- LoadH5Seurat("../data/pbmc_multimodal.h5seurat")
+```
+## Find Transfer Anchors
+```{r}
+ref.anchors = FindTransferAnchors(
+  reference = reference,
+  query = fdpost.combined,
+  normalization.method = "SCT",
+  reference.reduction = "spca",
+  dims = 1:50 #Default value is 1:30. Vignette uses 1:50 dims. -TM
+) 
+```
+## Map Query
+```{r}
+fdpost.combined = MapQuery(
+  anchorset = ref.anchors,
+  query = fdpost.combined,
+  reference = reference,
+  refdata = list(
+    celltype.l1 = "celltype.l1",
+    celltype.l2 = "celltype.l2",
+    predicted_ADT = "ADT"
+  ),
+  reference.reduction = "spca", 
+  reduction.model = "wnn.umap"
+)
+```
+
+## UMAP Plots Using Reference UMAP
+UMAP plots showing l1 and l2 predicted celltypes. The cells are placed onto the reference's UMAP.
+```{r}
+p1 <- DimPlot(fdpost.combined, reduction = "ref.umap", group.by = "predicted.celltype.l1", 
+              label = TRUE, label.size = 3, repel = TRUE) #+ NoLegend()
+p2 = DimPlot(fdpost.combined, reduction = "ref.umap", group.by = "predicted.celltype.l2", 
+             label = TRUE, label.size = 3 ,repel = TRUE) #+ NoLegend()
+p1
+p2
+(p1 + p2) & NoLegend()
+```
+
+## Cell Counts from l1 and l2 Predictions
+```{r}
+table(fdpost.combined$predicted.celltype.l1)
+table(fdpost.combined$predicted.celltype.l2)
+```
+
+
+# 4) Filter using SingleR Refs  
+```{r}
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+## Filter Out hpca.main Blood Cells  
+```{r}
+fdpost.combined <-
+  subset(
+    fdpost.combined,
+    subset = hpca.main != "B_cell" & hpca.main != "BM" &
+      hpca.main != "BM & Prog." &
+      hpca.main != "CMP" & hpca.main != "DC" &
+      hpca.main != "Erythroblast" &
+      hpca.main != "GMP" &
+      hpca.main != "HSC_CD34+" &
+      hpca.main != "Macrophage" &
+      hpca.main != "MEP" & hpca.main != "Monocyte" &
+      hpca.main != "Neutrophils" &
+      hpca.main != "NK_cell" &
+      hpca.main != "Pre-B_cell_CD34-" &
+      hpca.main != "Pro-B_cell_CD34+" &
+      hpca.main != "Pro-Myelocyte" &
+      hpca.main != "T_cells"
+  )
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+## Filter Out encode.main Blood Cells  
+```{r}
+fdpost.combined <-
+  subset(
+    fdpost.combined,
+    subset = encode.main != "B-cells" & encode.main != "CD4+ T-cells" &
+      encode.main != "CD8+ T-cells" &
+      encode.main != "Erythrocytes" &
+      encode.main != "HSC" &
+      encode.main != "Monocytes" & encode.main != "NK cells"
+  )
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+## Filter out hpca & encode "fine" Blood Cells  
+```{r}
+fdpost.combined <-
+  subset(
+    fdpost.combined,
+    subset = hpca.fine != "HSC_CD34+" & hpca.fine != "NK_cell" &
+      hpca.fine != "Pro-B_cell_CD34+" &
+      hpca.fine != "B_cell:Plasma_cell" &
+      hpca.fine != "DC:monocyte-derived:AEC-conditioned" &
+      encode.fine != "CD4+ T-cells" &
+      encode.fine != "CLP" & encode.fine != "Erythrocytes" &
+      encode.fine != "HSC" &
+      encode.fine != "Plasma cells" &
+      encode.fine != "naive B-cells"
+  )
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+## Cell Counts from hpca.main after Filtering
+```{r}
+table(fdpost.combined$hpca.main)
+```
+## Cell Counts from encode.main after Filtering
+```{r}
+table(fdpost.combined$encode.main)
+```
+
+
+# 5) Filter PTPRC+ (CD45+) Cells
+```{r}
+VlnPlot(fdpost.combined, features = "PTPRC", group.by = "predicted.celltype.l1", 
+        slot = "counts") + NoLegend()
+```
+
+```{r}
+# Remove PTPRC+ (CD45+) cells.
+fdpost.combined <- subset(fdpost.combined, subset = PTPRC < 1)
+```
+
+```{r}
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+
+# 6) Filter using Seurat's Ref.  
+```{r}
+# Filter out l1 blood cells with a score >= 0.8.
+# A large number of predicted monocytes, CD4 T cells and dendritic cells have a low
+# prediction score, so only remove those with a score greater than or equal to 0.8.  
+ncol(fdpost.combined)
+fdpost.combined <- subset(fdpost.combined, subset = (predicted.celltype.l1.score >= 0.8 & 
+                   predicted.celltype.l1 != 'other'), invert = TRUE)
+ncol(fdpost.combined)
+```
+
+```{r}
+# Filter out low frequency l1 blood cells
+fdpost.combined <- subset(fdpost.combined, subset = predicted.celltype.l1 != "CD8 T" & 
+                   predicted.celltype.l1 != "other T")
+```
+
+```{r}
+# Filter out l2 blood cells
+fdpost.combined <- subset(fdpost.combined, subset = predicted.celltype.l2 != "NK" &
+                   predicted.celltype.l2 != "Eryth")
+ncol(fdpost.combined)
+```
+
+
+# 7) Filter Additional RBC's  
+
+## VlnPlots of HBA1, HBA2, & HBB
+(linear scale)
+```{r}
+VlnPlot(fdpost.combined, features = c("HBA1", "HBA2", "HBB"), slot = "counts") + NoLegend()
+```
+(log scale)
+```{r}
+VlnPlot(fdpost.combined, features = c("HBA1", "HBA2", "HBB"), slot = "counts", log = T) + NoLegend()
+```
+
+Filter cells w/ less than or equal to 3 HBA1, HBA2, or HBB transcripts.  
+```{r}
+# Total number of cells in the object
+ncol(fdpost.combined)
+
+DefaultAssay(fdpost.combined) <- "RNA"
+fdpost.combined <- subset(fdpost.combined, subset = HBA1 <= 3, slot = 'counts')
+fdpost.combined <- subset(fdpost.combined, subset = HBA2 <= 3, slot = 'counts')
+fdpost.combined <- subset(fdpost.combined, subset = HBB <= 3, slot = 'counts')
+DefaultAssay(fdpost.combined) <- "SCT"
+fdpost.combined <- subset(fdpost.combined, subset = HBA1 <= 3, slot = 'counts')
+fdpost.combined <- subset(fdpost.combined, subset = HBA2 <= 3, slot = 'counts')
+fdpost.combined <- subset(fdpost.combined, subset = HBB <= 3, slot = 'counts')
+
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+# Cell Counts after Filtering  
+```{r}
+fdpost.combined
+```
+
+## Cell Total
+```{r}
+# Total number of cells in the object
+ncol(fdpost.combined)
+```
+
+## Cell Counts per Sample  
+```{r}
+table(fdpost.combined$orig.ident)
+```
+## Cell Counts from hpca.main  
+```{r}
+table(fdpost.combined$hpca.main)
+```
+## Cell Counts from encode.main  
+```{r}
+table(fdpost.combined$encode.main)
+```
+
+## Save Object
+```{r}
+save(fdpost.combined, file='./Objects/fdpostcombined.rda')
+```
+
+
+

@@ -32,6 +32,13 @@ FD716ps <- CreateSeuratObject(counts = spx.fd.out[["FD716ps"]], project = "FD716
 rm(spx.fd.out)
 ```
 
+```{r}
+# Add experimental group metadata
+for(i in c(FD16ps,FD21ps, FD28ps, FD716ps)){
+  i$grp <- "FD"
+}
+```
+
 
 # Calculate mitochondrial percentage and store in percent.mt variable
 ```{r}

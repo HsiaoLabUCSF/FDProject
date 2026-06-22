@@ -1,0 +1,84 @@
+---
+title: "R Notebook - Cluster Stromal Portions of FD and WT samples using Liger"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+This pipeline clusters the stromal portions of the dataset samples using Seurat and Liger R packages.  The stromal clusters are first subset from the integrated object generated in a previous pipleine and then re-integrated and clustered.
+
+See:  
+https://htmlpreview.github.io/?https://github.com/satijalab/seurat.wrappers/blob/master/docs/liger.html  
+
+```{r}
+library(rliger)
+library(Seurat)
+library(SeuratWrappers)
+library(R.filesets)
+```
+
+# Load Object
+```{r}
+fdpost.combined <- readRDS(file='./Objects/fdpostcombined.rds')
+```
+
+```{r}
+DimPlot(fdpost.combined, label = T) + ggtitle('fdpost.combined')
+```
+
+# Subset Clusters
+Subset stromal clusters (including stromal cycling cells) into their own object.  
+Note: When running the next line of code, make sure the cluster numbers given in the idents parameter match the stromal cluster numbers in your own object.  
+```{r}
+strom.liger <- subset(fdpost.combined, idents = c(0:1,6:10))
+```
+
+```{r}
+DefaultAssay(strom.liger)
+```
+
+```{r}
+rm(fdpost.combined)
+```
+
+# Normalize and Scale Data
+```{r}
+strom.liger <- NormalizeData(strom.liger)
+strom.liger <- FindVariableFeatures(strom.liger)
+```
+
+```{r}
+strom.liger <- ScaleData(strom.liger, split.by = "orig.ident", do.center = FALSE)
+```
+
+# Run Liger Wrapper Functions
+```{r}
+strom.liger <- RunOptimizeALS(strom.liger, k = 20, lambda = 4, split.by = "orig.ident")
+```
+```{r}
+strom.liger <- RunQuantileNorm(strom.liger, split.by = "orig.ident")
+```
+
+# Cluster Cells
+```{r}
+# Perform Louvain clustering (`FindNeighbors` and `FindClusters`) after
+# `RunQuantileNorm`
+strom.liger <- FindNeighbors(strom.liger, reduction = "iNMF", dims = 1:20)
+strom.liger <- FindClusters(strom.liger, resolution = 0.45)
+# Dimensional reduction and plotting
+strom.liger <- RunUMAP(strom.liger, dims = 1:ncol(strom.liger[["iNMF"]]), reduction = "iNMF")
+```
+
+## UMAP
+```{r}
+DimPlot(strom.liger, label = T)
+```
+
+# Save Object
+```{r}
+saveRDS(strom.liger, file="./Objects/stromliger.rds")
+```
+
+
+

@@ -1,0 +1,110 @@
+---
+title: "R Notebook - Integration of FD & WT Whole Samples"
+output: 
+  html_notebook:
+    toc: true
+    toc_float: true
+---
+
+This pipeline integrates 4 "FD" Fibrous Dysplasia and 4 "WT" control samples into one object using Seurat's integration workflow with the Harmony package.  
+
+See:  
+https://satijalab.org/seurat/archive/v4.3/integration_introduction  
+https://htmlpreview.github.io/?https://github.com/satijalab/seurat.wrappers/blob/master/docs/harmony.html
+
+All samples were run through QC and hematopoietic lineage cell removal in previous steps and the resulting object is used as the input for this pipeline.  
+
+```{r}
+# Load libraries.
+library(Seurat)
+library(harmony)
+library(ggplot2)
+library(patchwork)
+library(R.filesets)
+```
+
+```{r}
+# Load dataset object.  Variable name is fdpost.combined.
+load(file='./Objects/fdpostcombined.rda')
+```
+
+# Setup the Seurat Objects
+```{r}
+# split the dataset into a list of seurat objects
+sample.list <- SplitObject(fdpost.combined, split.by = "orig.ident")
+
+# normalize and identify variable features for each dataset independently
+sample.list <- lapply(X = sample.list, FUN = function(x) {
+    DefaultAssay(x) <- 'RNA'
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 3000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = sample.list, nfeatures = 3000)
+```
+
+# Perform Integration
+```{r}
+sample.anchors <- FindIntegrationAnchors(object.list = sample.list, anchor.features = features)
+```
+
+```{r}
+# this command creates an 'integrated' data assay
+fdpost.combined <- IntegrateData(anchorset = sample.anchors)
+```
+# Perform an Integrated Analysis
+```{r}
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(fdpost.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+fdpost.combined <- ScaleData(fdpost.combined, verbose = FALSE, vars.to.regress = 'percent.mt')
+fdpost.combined <- RunPCA(fdpost.combined, npcs = 30, verbose = FALSE)
+
+# Commented steps below not needed prior to running Harmony
+#fdpost.combined <- RunUMAP(fdpost.combined, reduction = "pca", dims = 1:30, verbose = F)
+#fdpost.combined <- FindNeighbors(fdpost.combined, reduction = "pca", dims = 1:30)
+#fdpost.combined <- FindClusters(fdpost.combined, resolution = 0.4)
+```
+
+# Run Harmony
+```{r}
+fdpost.combined <- RunHarmony(fdpost.combined, group.by.vars = "orig.ident", 
+                              assay.use = 'integrated',
+                              reduction = 'pca')
+```
+
+## 10 Harmony Dims, Res: 0.4  
+```{r}
+# 10 Harmony Dims, Res: 0.4.
+DefaultAssay(fdpost.combined) <- 'integrated'
+fdpost.combined <- FindNeighbors(fdpost.combined, dims = 1:10, verbose=F, 
+                                 reduction = 'harmony')
+fdpost.combined <- FindClusters(fdpost.combined, resolution = 0.4, verbose=F)
+fdpost.combined <- RunUMAP(fdpost.combined, reduction = "harmony", dims = 1:10, verbose=F)
+```
+
+## UMAP  
+```{r}
+DimPlot(fdpost.combined, label = T) + ggtitle('Dims:10, Res:0.4')
+```
+
+## Markers: ACTA2, COL1A1, PECAM1, CENPF  
+```{r}
+# Marker genes for each cluster group.
+# ACTA2: Smooth muscle
+# COL1A1: Stromal
+# PECAM1: Endothelial
+# CENPF: Cycling
+DefaultAssay(fdpost.combined) <- 'RNA'
+FeaturePlot(fdpost.combined, features = c("ACTA2", "PECAM1", "COL1A1", "CENPF"), 
+            order = T, min.cutoff = c('q10','q10','q10','q10'))
+```
+
+# Save Object
+```{r}
+saveRDS(fdpost.combined, file='./Objects/fdpostcombined.rds')
+```
+

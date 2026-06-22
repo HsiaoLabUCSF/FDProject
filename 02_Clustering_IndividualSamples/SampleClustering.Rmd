@@ -1,0 +1,124 @@
+---
+title: "R Notebook - Individual Sample Clustering"
+output: 
+  html_notebook:
+    toc: true
+    toc_float: true
+---
+
+This pipeline performs cell clustering on each of the 8 dataset samples individually.  
+
+See:  
+https://satijalab.org/seurat/archive/v4.3/sctransform_vignette  
+https://satijalab.org/seurat/archive/v4.3/pbmc3k_tutorial
+
+All samples were run through QC and hematopoietic lineage cell removal in previous steps. The resulting object is used as the input for this pipeline.  For each sample, make a copy of this script and replace the word "mySample" with the name of one of the samples in the dataset (e.g. FD16ps).  Then, uncomment the line with the parameters for that sample in the code below.
+
+# Parameter Settings
+```{r}
+# Parameter settings for each sample in the dataset.  
+# FD16ps
+# Dims = 10; Res = 0.4
+
+# FD21ps
+# Dims = 10; Res = 0.4
+
+# FD28ps
+# Dims = 11; Res = 0.4
+
+# FD716ps
+# Dims = 12; Res = 0.4
+
+# WT150ps
+# Dims = 7; Res = 0.4
+
+# WT151ps
+# Dims = 12; Res = 0.4; k.param = 10
+
+# WT152ps
+# Dims = 6; Res = 0.35; k.param = 6
+
+# WT153ps
+# Dims = 8; Res = 0.4
+```
+
+```{r}
+# Set k.param to default if not already set
+if (!exists("k.param")) { k.param = 20 }
+```
+
+# Load Libraries
+```{r}
+library(Seurat)
+library(patchwork)
+library(xlsx)
+library(ggplot2)
+library(dplyr)
+library(plyr)
+```
+
+```{r}
+# Load dataset object.  Variable name is fdpost.combined.
+load(file='./Objects/fdpostcombined.rda')
+```
+
+```{r}
+# Subset sample from filtered object
+mySample <- subset(fdpost.combined, subset = orig.ident == 'mySample')
+```
+
+```{r}
+mySample
+```
+
+# Run SCTransform
+```{r}
+mySample <- SCTransform(mySample, vars.to.regress = c('percent.mt'), 
+                     variable.features.n = 3000)
+```
+
+# Run PCA
+```{r}
+mySample <- RunPCA(mySample, features = VariableFeatures(object = mySample))
+```
+
+# Elbow Plot
+```{r}
+ElbowPlot(mySample)
+```
+
+# Set UMAP
+```{r}
+# Using 11 PCA Dims, Res: 0.4.
+mySample <- FindNeighbors(mySample, dims = 1:Dims, verbose=F, k.param = k.param)
+mySample <- FindClusters(mySample, resolution = Res, verbose=F)
+mySample <- RunUMAP(mySample, reduction = "pca", dims = 1:Dims, verbose=F)
+```
+
+```{r}
+DimPlot(mySample, label = T) + ggtitle("mySample")
+```
+
+# Find Markers
+```{r}
+# Find markers for every cluster compared to all remaining cells, report only the positive
+# ones.
+markers.mySample <- FindAllMarkers(mySample, only.pos = TRUE, min.pct = 0.25, 
+                                   logfc.threshold = 0.25, verbose=F)
+```
+
+## Heatmap
+```{r}
+# Heatmap
+markers.mySample %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC) -> top10.mySample
+DoHeatmap(mySample, features = top10.mySample$gene, raster = F) + NoLegend() + 
+  scale_y_discrete(guide = guide_axis(n.dodge = 2)) + 
+  theme(axis.text.y = element_text(size=7)) + ggtitle("mySample")
+```
+
+# Save Object
+```{r}
+saveRDS(mySample, file="./Objects/Clustering_mySample.rds")
+```
+
+

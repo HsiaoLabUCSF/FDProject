@@ -22,9 +22,9 @@ The steps in this pipeline are as follows:
 4) Remove blood cells based on SingleR's reference-based annotations.  
 5) Remove PTPRC+ (a hemapoietic lineage marker) cells.  
 6) Remove blood cells based on Seurat's reference-based annotations.  
-7) Remove remaining RBCs and RBC-contanminated cells.  
+7) Remove remaining RBCs and RBC-contaminated cells.  
 
-(Note: For simplicitie's sake, FD28ps is included in the script below.  However, for the published analysis, FD28ps was collected at a later date, processed individually using the same filtering steps and cutoffs before being integrated with the other samples post-filtering.)  
+(Note: For simplicity's sake, FD28ps is included in the script below.  However, for the published analysis, FD28ps was collected at a later date, processed individually using the same filtering steps and cutoffs before being integrated with the other samples post-filtering.)  
 
 ```{r}
 # Load libraries
